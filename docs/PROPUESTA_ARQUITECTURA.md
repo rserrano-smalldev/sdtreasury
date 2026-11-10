@@ -1,8 +1,13 @@
-# SD Treasury: propuesta de arquitectura y plan por fases (v2)
+# SD Treasury: propuesta de arquitectura y plan por fases (v3)
 
 Objetivo: un sistema de gestión de tesorería (TMS) que complemente Odoo y cubra el perímetro funcional de Agicap.
 
-> **v2 (10/11/2026):** rehecha a partir de las páginas de producto de agicap.com/es: liquidez, previsión, conectividad bancaria/ERP, pagos, gastos, cobros, automatización contable, financiación, consolidación, cash pooling, deuda, reporting, IA, servidor MCP, app móvil y facturación electrónica.
+> **v3 (10/11/2026):** ajustada a las condiciones de partida:
+> - **Producto para clientes** de SmallDev (no uso interno).
+> - De entrada, **solo Odoo 18 y 19 Enterprise**, siempre desplegado en **AWS**.
+> - **A largo plazo, otros ERPs.**
+>
+> Esto cambia la arquitectura de la v2 (addons nativos de Odoo) a una **plataforma propia independiente del ERP con un conector para Odoo**. El análisis funcional de Agicap (sección 1) se mantiene de la v2.
 
 ---
 
@@ -28,204 +33,226 @@ Agicap se organiza en cinco grandes productos más una capa transversal:
 
 ---
 
-## 2. Análisis de cobertura: qué ya hace Odoo y qué construimos
+## 2. Qué aporta Odoo Enterprise y qué construimos
 
-Clave: ✅ lo cubre Odoo u OCA (lo reutilizamos) · 🟡 parcial (lo ampliamos) · ❌ no existe (lo construimos) · ⏸ fuera de alcance o fase opcional
+Al ser siempre Enterprise, podemos **apoyarnos en Odoo para los datos de origen** desde el día uno. Aun así, la lógica de tesorería vive en nuestra plataforma, para que siga funcionando cuando el ERP sea otro.
 
-> La disponibilidad exacta depende de la versión (17/18/19) y la edición. Se verifica en la Fase 0 sobre vuestra instancia.
-
-| Área | Odoo / OCA hoy | SD Treasury |
+| Área | Odoo 18/19 Enterprise | Papel en SD Treasury |
 |---|---|---|
-| Sincronización bancaria PSD2 | 🟡 Enterprise (Odoo Online Sync); Community no | Import N43/CAMT/XLSX desde el inicio; PSD2 propio en el engine (Fase 6) |
-| EDITRAN / EBICS / SWIFT / H2H | ❌ | ⏸ Opcional (Fase 7): requiere contrato con cada banco o un partner |
-| Conciliación con tolerancias | ✅ Modelos de conciliación | Reutilizar; añadir sugerencias ML (Fase 6) |
-| **Categorías de tesorería** | ❌ (solo cuentas contables y analítica) | ❌ → **núcleo, Fase 1** |
-| **Posición de caja y cockpit** | 🟡 Dashboard contable básico | ❌ → **Fase 1** |
-| **Previsión multihorizonte** | ❌ | ❌ → **Fases 1–2** |
-| **Conversor presupuesto/PyG → caja** | ❌ | ❌ → **Fase 2** |
-| **Escenarios y desviaciones** | ❌ | ❌ → **Fase 2** |
-| Seguimiento de cobros | 🟡 Enterprise `account_followup`; OCA `account_credit_control` | Ampliar: DSO de grupo, riesgo, litigios, previsión por comportamiento (**Fase 3**) |
-| Límite de crédito por cliente | ✅ Odoo 17+ (límite en el partner) | Integrarlo en la puntuación de riesgo |
-| Enlace de pago en recordatorios | ✅ Portal + proveedores de pago | Reutilizar |
-| Remesas SEPA pain.001 / pain.008 | 🟡 Enterprise `account_sepa`; OCA `account_payment_order` + `l10n_es` (N19, N34, confirming) | Ampliar: firma doble, antifraude de beneficiarios, PSR (**Fase 4**) |
-| Pedidos y cotejo a tres bandas | ✅ Compras (control de facturas por cantidad recibida) | Reutilizar |
-| OCR de facturas | ✅ Enterprise (digitalización IAP) | Reutilizar |
-| Aprobaciones | 🟡 `approvals` / OCA `tier_validation` | Reutilizar para pagos (Fase 4) |
-| Notas de gastos | ✅ `hr_expense` | Reutilizar; reflejarlas en la previsión |
-| Presupuesto por centro de coste | 🟡 Presupuestos analíticos (Enterprise) | **Presupuesto de caja** por categoría (Fase 2) |
-| Tarjetas corporativas | ❌ | ⏸ Fuera de alcance (requiere entidad de dinero electrónico) |
-| Préstamos y leasing | 🟡 Enterprise 18+ (préstamos); OCA `account_loan` | Ampliar: EURIBOR, covenants, KPIs de deuda (**Fase 5**) |
-| Inversiones y depósitos | ❌ | ❌ → **Fase 5** |
-| Multicompañía | ✅ | **Consolidación de tesorería** multidivisa (**Fase 5**) |
-| Intragrupo y cash pooling | 🟡 Transacciones intercompañía (Enterprise) | Detección de flujos, préstamos intragrupo con intereses, sugerencias de barrido (**Fase 5**) |
-| Coberturas de divisa y tipo | ❌ | ⏸ Opcional (Fase 7) |
-| Reporting de tesorería | 🟡 Pivot/hojas de cálculo | Plantillas de tesorería y resumen del lunes (Fases 1 → 5) |
-| IA / lenguaje natural / anomalías | ❌ | **Fase 6** |
-| Servidor MCP | 🟡 Ya usáis un MCP de Odoo genérico | **MCP de tesorería** con herramientas de alto nivel (Fase 6) |
-| App móvil | 🟡 App Odoo (web responsive) | Vistas móviles del cockpit, aprobación de pagos y notificaciones |
-| Facturación electrónica / Verifactu / SII | ✅ Localización española (Facturae, SII, Verifactu según versión) | No duplicar; solo leer el estado de cobro |
+| Sincronización bancaria PSD2 | ✅ Odoo Online Sync (Salt Edge, Ponto…) | **Al principio leemos los extractos de Odoo.** PSD2 propio en la Fase 6, para no depender del ERP |
+| Import N43 / CAMT | ✅ Localización ES | Leemos el resultado desde Odoo; import propio cuando haya otro ERP |
+| Conciliación | ✅ Modelos de conciliación | Se queda en Odoo; nosotros leemos el estado conciliado |
+| Facturas, pedidos, gastos, nóminas | ✅ ERP | Datos de origen de la previsión (solo lectura) |
+| OCR, cotejo a tres bandas, aprobaciones de compra | ✅ | Se quedan en Odoo (fuera del producto) |
+| Seguimiento de cobros (follow-up) | ✅ básico | **Nuestro módulo de cobros** (riesgo, DSO de grupo, litigios); el cobro se registra en Odoo |
+| SEPA y lotes de pago | ✅ `account_sepa`, `account_batch_payment` | **Generación y gobierno de remesas en la plataforma** (firmas, antifraude, PSR); el pago se registra en Odoo |
+| Préstamos | 🟡 Gestión de préstamos (a verificar en 18 y 19) | Financiación completa en la plataforma (EURIBOR, covenants, inversiones) |
+| Multicompañía e intercompañía | ✅ | Consolidación, intragrupo y cash pooling en la plataforma |
+| Categorías, previsión, escenarios, desviaciones, reporting, IA, MCP | ❌ | **Núcleo del producto** |
+| Facturación electrónica, SII, Verifactu | ✅ Localización ES | No se duplica |
 
-**Conclusión:** casi todo lo que en Agicap es *gestión de gastos* y *automatización contable* ya lo hace Odoo, porque Odoo es el ERP. Nuestro valor está en la **capa de tesorería**: categorías, previsión, escenarios, cobros avanzados, gobierno de pagos, financiación, grupo, reporting e IA.
+**Principio:** el ERP es la fuente de verdad de los **documentos contables** (facturas, pagos, extractos, asientos). La plataforma es la fuente de verdad de **categorías, previsiones, escenarios, presupuestos de caja, financiación, remesas y su gobierno**.
 
 ---
 
-## 3. Arquitectura
+## 3. Arquitectura recomendada
 
-### Decisión: Python, con Odoo como núcleo
+### 3.1 Decisión: plataforma SaaS propia + conector para Odoo
 
-No recomiendo Node.js + React porque Odoo ya tiene los datos (facturas, pagos, extractos, pedidos, nóminas, analítica), los permisos y la multicompañía. Una app externa tendría que sincronizarlo todo y rehacer la seguridad. OWL, el framework de interfaz de Odoo, se parece mucho a React y cubre los paneles necesarios.
+| Opción | Ventajas | Inconvenientes | Veredicto |
+|---|---|---|---|
+| A. Addons nativos de Odoo (v2) | Lo más rápido para Odoo; sin sincronización | **Atado a Odoo**: otro ERP obliga a reescribir. Hay que instalar y actualizar en cada Odoo de cada cliente (18 y 19). Las licencias (LGPL/OPL) y el modelo de producto quedan supeditados a Odoo | ❌ No encaja con el objetivo |
+| **B. Plataforma independiente (backend Python + frontend React) + conectores por ERP** | Un solo producto para todos los ERPs, despliegue centralizado, modelo SaaS por suscripción, independiente de la versión de Odoo | Hay que sincronizar los datos y gestionar la autenticación | ✅ **Recomendada** |
 
-```
-┌──────────────────────────────── Odoo 17/18/19 ─────────────────────────────────┐
-│  Reutiliza: account, purchase, hr_expense, approvals, follow-up, SEPA/OCA,     │
-│             localización ES (N43, N19/N34, Facturae, SII)                      │
-│                                                                                │
-│  sd_treasury_base        Categorías, reglas, treasury.flow, posición de caja   │
-│  sd_treasury_bank        Import N43/CAMT/XLSX, mapeo de cuentas, comisiones    │
-│  sd_treasury_forecast    Multihorizonte, conversor de presupuesto, escenarios, │
-│                          desviaciones                                          │
-│  sd_treasury_collect     Riesgo, DSO, litigios, previsión de cobro real        │
-│  sd_treasury_payment     Propuestas, firmas, beneficiarios, PSR (pain.002)     │
-│  sd_treasury_financing   Préstamos, pólizas, EURIBOR, covenants, inversiones   │
-│  sd_treasury_group       Consolidación, intragrupo, cash pooling, divisas      │
-│  sd_treasury_report      Plantillas, export PDF/Excel, resumen del lunes       │
-│  sd_treasury_dashboard   Cockpit OWL (escritorio y móvil)                      │
-└───────────────▲────────────────────────────────────────────────────────────────┘
-                │ API REST interna (HMAC) + webhooks + queue_job
-┌───────────────┴──────────── sd-treasury-engine (FastAPI, Python) ──────────────┐
-│  connectors/   PSD2 (GoCardless Bank Account Data, Salt Edge…), BCE/EURIBOR    │
-│  ml/           Categorización, conciliación sugerida, previsión (statsforecast),│
-│                anomalías                                                       │
-│  ai/           Asistente en lenguaje natural (Claude API) + servidor MCP de    │
-│                tesorería (OAuth con los permisos del usuario de Odoo)          │
-│  workers/      Celery/RQ + Redis · PostgreSQL propio (datos crudos y tokens)   │
-└────────────────────────────────────────────────────────────────────────────────┘
-```
+**Stack:**
+- **Backend en Python:** FastAPI, SQLAlchemy 2 y Alembic, Pydantic v2, y workers asíncronos (Celery o Dramatiq). Python además encaja con el ML de previsión (pandas, statsforecast, scikit-learn).
+- **Frontend en React + TypeScript:** Vite, TanStack Query/Router, ECharts para los gráficos y AG Grid para el plan de tesorería tipo hoja de cálculo. Diseño responsive (PWA) para la aprobación móvil.
+- **Conector Odoo:** un addon ligero `sd_treasury_connector` para Odoo 18 y 19, más un adaptador Python dentro de la plataforma.
 
-**Por qué un engine separado** (a partir de la Fase 6): tokens PSD2 aislados de Odoo, librerías pesadas de ML sin cargar Odoo ni chocar con las restricciones de Odoo.sh, procesos largos fuera de los workers de Odoo y un servidor MCP con su propio ciclo de despliegue. Las Fases 1 a 5 funcionan **solo con Odoo**.
-
-### Modelo de datos principal
+### 3.2 Vista general
 
 ```
-treasury.category         Árbol de categorías (entrada/salida), cuenta contable por defecto
-treasury.category.rule    Reglas: concepto / IBAN / partner / importe / diario → categoría
-treasury.flow             TABLA CENTRAL. fecha, importe, divisa, empresa, cuenta bancaria,
-                          categoría, estado (real | comprometido | previsto),
-                          origen (extracto, factura, pedido, nómina, gasto, préstamo,
-                          recurrente, presupuesto, manual), res_model/res_id, escenario
-treasury.forecast.recurring  Previsiones recurrentes (alquiler, nóminas, cuotas)
-treasury.budget           Presupuesto de caja por categoría y periodo (y conversor desde PyG)
-treasury.scenario         Escenario + ajustes; un escenario puede heredar de otro
-treasury.snapshot         Foto de una previsión en una fecha, para medir desviaciones
-treasury.payment.batch    Remesa: firmas, estado del banco (PSR), historial
-treasury.beneficiary.log  Cambios de IBAN de proveedores (antifraude)
-treasury.debt             Préstamo, leasing o póliza: tipo fijo/variable, índice y diferencial,
-                          cuadro de amortización, covenants
-treasury.investment       Depósito o inversión: importe, tipo, vencimiento, interés devengado
-treasury.pool             Cash pool: cuenta centralizadora, umbrales, propuestas de barrido
-treasury.alert            Reglas de alerta e historial
+                    ┌─────────────── Clientes (Odoo 18/19 Enterprise en AWS) ───────────────┐
+                    │  Odoo cliente A            Odoo cliente B           Odoo cliente C    │
+                    │  └ sd_treasury_connector   └ sd_treasury_connector  └ …               │
+                    │     · menú «Tesorería» (UI embebida + SSO)                            │
+                    │     · webhooks de cambios (facturas, pagos, extractos)                │
+                    │     · endpoints de escritura (registrar pagos/remesas)                │
+                    └──────────────────────────┬────────────────────────────────────────────┘
+                                               │ HTTPS · API key por cliente · firma HMAC
+┌──────────────────────────────── SD Treasury Platform (AWS, multi-tenant) ───────────────────────────┐
+│                                                                                                     │
+│  Frontend React (S3 + CloudFront)              API Gateway / ALB                                    │
+│                                                     │                                               │
+│  ┌──────────────────────── API FastAPI (ECS Fargate) ──────────────────────────┐                    │
+│  │ tenants · usuarios/roles · categorías · flujos · previsión · escenarios     │                    │
+│  │ cobros · pagos · financiación · grupo · reporting · alertas                 │                    │
+│  └───────────────┬────────────────────────────────────────────┬────────────────┘                    │
+│                  │                                            │                                     │
+│  ┌───────────────┴────────── Workers (ECS Fargate) ───────────┴───────────────┐                     │
+│  │ sync/      conectores ERP: OdooConnector (18 → JSON-RPC, 19 → JSON-2)      │                     │
+│  │            [futuro: Holded, Sage, A3, Business Central…]                   │                     │
+│  │ banking/   PSD2 (Fase 6), EURIBOR del BCE, ficheros N43/CAMT/pain          │                     │
+│  │ engine/    cálculo de flujos, previsión, escenarios, alertas               │                     │
+│  │ ml/ ai/    categorización, anomalías, asistente (Claude API), servidor MCP │                     │
+│  └────────────────────────────────────────────────────────────────────────────┘                     │
+│                                                                                                     │
+│  RDS PostgreSQL (multi-AZ, RLS por tenant) · ElastiCache Redis · SQS · EventBridge (crons)          │
+│  S3 (ficheros, informes) · Secrets Manager + KMS (credenciales ERP/bancos) · Cognito (auth)         │
+│  CloudWatch + Sentry · WAF · backups y PITR                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`treasury.flow` unifica lo **real** (extractos), lo **comprometido** (facturas pendientes, con fecha ajustada por el retraso medio de cada partner) y lo **previsto** (pedidos sin facturar, nóminas, impuestos, cuotas de préstamos, gastos, presupuesto). Así una sola consulta da la posición en cualquier horizonte, por empresa, categoría o escenario.
+### 3.3 Capa de conectores ERP: lo que permite crecer a otros ERPs
+
+Toda la lógica trabaja sobre un **modelo canónico** independiente del ERP. Cada conector solo traduce:
+
+```python
+class ErpConnector(Protocol):
+    # Lectura (incremental por cursor/fecha de modificación)
+    def companies(self) -> list[Company]: ...
+    def bank_accounts(self) -> list[BankAccount]: ...
+    def bank_transactions(self, since: Cursor) -> Page[BankTransaction]: ...
+    def open_items(self, since: Cursor) -> Page[OpenItem]: ...      # facturas cliente/proveedor pendientes
+    def orders(self, since: Cursor) -> Page[Order]: ...             # pedidos venta/compra sin facturar
+    def partners(self, since: Cursor) -> Page[Partner]: ...
+    def recurring_costs(self) -> list[RecurringItem]: ...           # nóminas, gastos…
+    # Escritura
+    def register_payment(self, batch: PaymentBatch) -> ErpRef: ...
+    def post_journal_entry(self, entry: JournalEntry) -> ErpRef: ...
+    def capabilities(self) -> set[Capability]: ...                  # qué soporta este ERP/versión
+```
+
+**Conector Odoo:**
+- **Odoo 18:** JSON-RPC o XML-RPC con API key de un usuario técnico por cliente.
+- **Odoo 19:** nueva API **JSON-2** (`/json/2/<modelo>/<método>`). XML-RPC y JSON-RPC están marcados como obsoletos en 19, así que el adaptador abstrae ambas versiones desde el principio.
+- **Sincronización:** carga inicial completa, luego incremental por `write_date`, más **webhooks** emitidos por el addon (o reglas de automatización de Odoo) para un tiempo casi real. Upserts idempotentes por (`tenant`, `erp`, `modelo`, `id`). Reconciliación nocturna para corregir divergencias.
+- **Addon `sd_treasury_connector`:** menú «Tesorería» en Odoo que abre la app embebida con SSO (token firmado de corta duración), emite los webhooks, expone endpoints de escritura controlados y un asistente de configuración (URL, API key, empresas a sincronizar). **Sin lógica de negocio**, para que sea fácil de mantener en 18 y 19 y publicable en Odoo Apps.
+
+### 3.4 Multi-tenant y seguridad
+- **Tenant = cliente.** Un tenant puede tener varias sociedades (multicompañía de Odoo) y, en el futuro, varios ERPs.
+- **Aislamiento:** base de datos compartida con `tenant_id` en todas las tablas y **Row-Level Security de PostgreSQL**. Opción de base dedicada para clientes grandes.
+- **Autenticación:** Cognito (o Keycloak) con roles (Administrador, Tesorero, Aprobador, Lectura) y permisos por sociedad. SSO desde Odoo.
+- **Secretos:** API keys de Odoo y tokens PSD2 en Secrets Manager, cifrados con KMS.
+- **Cumplimiento:** RGPD; **región AWS en la UE** (`eu-south-2` España o `eu-west-3` París); registro de auditoría inmutable de firmas, cambios de beneficiarios y escenarios; camino hacia ISO 27001 (Agicap la tiene y los clientes la pedirán).
+- **Infraestructura como código:** Terraform. CI/CD con GitHub Actions y entornos dev, staging y producción.
+
+### 3.5 Modelo de datos canónico (resumen)
+
+```
+tenant, company, bank_account, partner                       (espejo del ERP)
+bank_transaction, open_item, order, recurring_item           (espejo del ERP, solo lectura)
+category, category_rule                                      (propio)
+flow            TABLA CENTRAL: fecha, importe, divisa, company, bank_account, category,
+                estado (real | comprometido | previsto), origen, erp_ref, scenario_id
+forecast_recurring, budget, scenario, scenario_adjustment, forecast_snapshot
+collection_case, dunning_step, dispute                        (cobros)
+payment_batch, payment_line, signature, beneficiary_change   (pagos)
+debt, debt_schedule, covenant, investment, rate_index        (financiación)
+cash_pool, sweep_proposal, intercompany_loan                 (grupo)
+alert_rule, alert_event, report_template, audit_log
+```
 
 ---
 
 ## 4. Plan por fases
 
-Cada fase entrega algo utilizable en producción. Las duraciones suponen 1–2 desarrolladores.
+Supone un equipo de 2–3 desarrolladores (backend Python, frontend React y una persona funcional de Odoo y tesorería a tiempo parcial). Cada fase se puede usar en producción por sí sola, con un **cliente piloto** desde el final de la Fase 1.
 
-### Fase 0: preparación y análisis sobre vuestra instancia (1–2 semanas)
-- Confirmar la versión y edición de Odoo y los módulos instalados (Enterprise y OCA); cerrar la tabla de cobertura de la sección 2.
-- Repositorio, Docker (Odoo + PostgreSQL), CI (pre-commit, pylint-odoo, tests) y datos demo.
-- Árbol de categorías por defecto (plantilla PYME y grupo español).
+### Fase 0: cimientos de la plataforma (4–5 semanas)
+- Infraestructura AWS con Terraform (VPC, ECS Fargate, RDS, Redis, SQS, S3/CloudFront, Cognito, Secrets Manager); entornos dev, staging y producción.
+- Esqueleto de FastAPI (multi-tenant, RLS, auth, auditoría) y de la app React (layout, auth, selector de sociedad).
+- Modelo canónico e interfaz `ErpConnector`.
+- **Conector Odoo v1 (solo lectura)** para 18 y 19: sociedades, cuentas, extractos, facturas pendientes, pedidos y partners; carga inicial, incremental y webhooks.
+- Addon `sd_treasury_connector`: configuración, SSO y menú embebido.
+- CI/CD, tests contra instancias Odoo 18 y 19 en Docker, observabilidad.
 
-### Fase 1: liquidez (5–6 semanas), el MVP
-*Equivale a «Gestión de liquidez» y «Seguimiento de tesorería» de Agicap.*
-- Categorías y reglas; categorización automática de extractos y facturas, con sugerencia de crear una regla cuando el usuario recategoriza a mano.
-- `treasury.flow` alimentado por extractos, facturas, pedidos y gastos.
-- Import **N43, CAMT.053 y XLSX** (reutilizando OCA `l10n-spain` y `bank-statement-import` si encajan).
-- **Cockpit**: saldo por banco y empresa, entradas y salidas por categoría, evolución diaria, cuadro de saldos actuales y futuros.
-- **Previsión a 13 semanas** (vencimientos + recurrentes).
-- Real vs. presupuesto básico; exportación a Excel.
+### Fase 1: liquidez, el MVP (5–6 semanas) → cliente piloto
+- Categorías y reglas con plantilla española; categorización automática con sugerencia de reglas.
+- Motor de `flow`: real (extractos de Odoo), comprometido (facturas con fecha ajustada por el retraso medio de cada partner) y previsto (pedidos, recurrentes).
+- **Cockpit**: saldo por banco y sociedad, entradas y salidas por categoría, evolución diaria, cuadro de saldos.
+- **Previsión a 13 semanas**; real vs. presupuesto básico; exportación a Excel y PDF.
 - **Resumen del lunes** por correo y alertas de saldo bajo umbral.
-- Seguridad: grupos Usuario y Responsable de tesorería, reglas multicompañía.
 
 ### Fase 2: previsión y escenarios (4–5 semanas)
-*Equivale a «Previsión de tesorería».*
-- **Multihorizonte**: diario (corto plazo), semanal (13 semanas) y mensual (12–24 meses).
-- **Conversor de presupuesto o PyG previsto → plan de tesorería**: cada línea con su categoría y su plazo de cobro o pago (por ejemplo, IVA trimestral o ventas a 60 días).
-- Previsiones automáticas de nóminas, Seguridad Social, impuestos (calendario de modelos 303, 111, 115, 200…) y alquileres.
-- **Escenarios** vinculables (base → pesimista → «nueva contratación») y comparación lado a lado.
-- **Análisis de desviaciones**: real vs. previsto (usando snapshots) y plan vs. plan, por categoría, empresa y periodo.
+- Multihorizonte: diario, 13 semanas y 12–24 meses.
+- **Conversor de presupuesto o PyG → plan de tesorería** (plazos de cobro y pago por categoría, IVA trimestral, impuestos 303/111/115/200, nóminas y Seguridad Social).
+- **Escenarios** vinculables y comparación entre ellos; snapshots y **análisis de desviaciones**.
 
-### Fase 3: cobros (4 semanas)
-*Equivale a «Gestión de cobros».*
-- Antigüedad de deuda, DSO por empresa y de grupo, segmentación por prioridad.
-- Puntuación de riesgo (importe × retraso histórico × límite de crédito) y bloqueo al superar el límite.
-- Recordatorios escalonados con plantillas y **enlace de pago**, sobre `account_followup` o OCA si están instalados.
-- **Litigios**: marcar una factura en disputa pausa sus recordatorios.
-- La previsión usa el **comportamiento real de pago** de cada cliente.
+### Fase 3: cobros (4–5 semanas)
+- Antigüedad de deuda, DSO por sociedad y de grupo, puntuación de riesgo, límites de crédito (leídos de Odoo).
+- Secuencias de recordatorio con plantillas y **enlace de pago** (portal de Odoo).
+- **Litigios** que pausan los recordatorios.
+- La previsión usa el comportamiento real de pago de cada cliente.
+- Escritura en Odoo: notas o actividades en la factura y el partner.
 
-### Fase 4: pagos y control de pagos (4–5 semanas)
-*Equivale a «Pagos / Payment Factory». La parte de AP y gastos se queda en Odoo.*
-- **Propuestas de pago** según vencimientos, prioridad y caja disponible en cada banco.
-- **Firma simple o doble** según importe o empresa, con historial de firmas y aprobación desde el móvil (vista responsive).
-- **Antifraude de beneficiarios**: los cambios de IBAN de proveedores se registran, se bloquean hasta validarlos y generan una alerta.
-- Generación **pain.001 / pain.008** (y N34/N19/confirming vía OCA `l10n-spain`).
-- Import de **estados de pago pain.002 (PSR)** para actualizar el estado de cada remesa.
+### Fase 4: pagos (5–6 semanas)
+- **Propuestas de pago** según vencimientos y caja disponible.
+- **Firma simple o doble**, historial de firmas y aprobación móvil.
+- **Antifraude de beneficiarios**: los cambios de IBAN detectados en la sincronización se bloquean hasta validarlos.
+- Generación **pain.001 / pain.008** en la plataforma; import de **pain.002 (PSR)**.
+- **Escritura en Odoo**: registro de pagos o lote de pagos y conciliación posterior con el extracto.
 
 ### Fase 5: financiación, inversiones y grupo (6–7 semanas)
-*Equivale a «Financiación e inversiones», «Consolidación», «Cash pooling» y «Gestión de deudas».*
-- Préstamos, leasing y pólizas de crédito, a tipo fijo o variable, con **cuadro de amortización** automático que alimenta la previsión.
-- **EURIBOR diario** desde la API pública del BCE para recalcular los intereses variables.
-- KPIs de deuda (principal pendiente, intereses pagados y por pagar, servicio de la deuda, deuda neta) y **covenants** con alertas.
-- Inversiones y depósitos: excedente invertible, simulación por horizonte, intereses devengados.
-- **Consolidación** de grupo multidivisa (vista grupo ↔ entidad).
-- **Intragrupo**: detección automática de flujos entre sociedades del grupo, préstamos y cuentas corrientes intragrupo con cálculo de intereses.
-- **Cash pooling**: pools, cuentas centralizadoras y umbrales; sugerencias de barrido que se convierten en remesas de la Fase 4.
-- **Reporting**: plantillas de pool bancario y comisiones, cash burn y runway, desviaciones, deuda, excedentes y DSO; exportación a PDF y Excel.
+- Préstamos, leasing y pólizas con cuadro de amortización; **EURIBOR diario** (API del BCE); KPIs de deuda y **covenants**.
+- Inversiones y depósitos: excedente invertible, simulación y seguimiento.
+- **Consolidación** multisociedad y multidivisa; **intragrupo** (detección, préstamos con intereses).
+- **Cash pooling** con sugerencias de barrido que pasan a remesas de la Fase 4.
+- Biblioteca de **informes**: pool bancario y comisiones, burn y runway, desviaciones, deuda, DSO.
 
-### Fase 6: conectividad PSD2 e IA (6–8 semanas)
-*Equivale a «Agicap AI», «MCP» y la agregación bancaria.*
-- Engine FastAPI con conector **PSD2** (GoCardless Bank Account Data como primera opción, Salt Edge como alternativa) que sincroniza diariamente con `account.bank.statement.line`.
-- **ML**: categorización automática con umbral de confianza, sugerencias de conciliación y previsión estadística de flujos no facturados.
-- **Detección de anomalías**: pagos duplicados, importes atípicos, desviaciones bruscas.
-- **Asistente en lenguaje natural** (Claude API) que responde y explica desviaciones con datos de `treasury.flow`, y permite recategorizar en bloque con revisión antes de aplicar.
-- **Servidor MCP de tesorería** con herramientas de alto nivel (`posicion_caja`, `prevision`, `desviaciones`, `dso`, `recategorizar`) que respetan los permisos del usuario de Odoo. Permite automatizar el «informe del CEO del lunes» o el pack para el consejo.
+### Fase 6: conectividad bancaria propia e IA (6–8 semanas)
+- **PSD2 propio** (GoCardless Bank Account Data o Salt Edge), necesario para independizarse del ERP y para clientes cuyo ERP no sincroniza bancos.
+- ML: categorización con nivel de confianza, previsión estadística de flujos no facturados, **detección de anomalías** (duplicados, importes atípicos).
+- **Asistente en lenguaje natural** (Claude API): preguntas, explicación de desviaciones y recategorización en bloque con revisión previa.
+- **Servidor MCP de SD Treasury** (OAuth, con los permisos del usuario): posición, previsión, desviaciones, DSO.
 
-### Fase 7 (opcional, según demanda)
-- Conectividad bancaria corporativa **EDITRAN / EBICS / H2H** (directa o mediante un partner).
-- Exposición a divisa y simulación de coberturas (forwards, Cap, Swap).
-- App móvil nativa con notificaciones push, si la vista responsive no basta.
+### Fase 7: producto y expansión (continua)
+- **Segundo conector ERP**. Candidatos en el mercado español: Holded, Sage 200, A3ERP, Microsoft Business Central (decidir según la cartera de clientes).
+- Facturación del SaaS (Stripe), onboarding autoservicio y panel de administración de tenants.
+- Opcional: EDITRAN, EBICS o H2H; coberturas de divisa y tipos; app móvil nativa.
 
-**Total orientativo: 7–9 meses** para las Fases 0–6.
+**Total orientativo: 9–11 meses** para las Fases 0–6.
 
 ---
 
-## 5. Estructura del repositorio
+## 5. Estructura del repositorio (monorepo)
 
 ```
 sdtreasury/
-├── addons/
-│   ├── sd_treasury_base/  sd_treasury_bank/  sd_treasury_forecast/
-│   ├── sd_treasury_collect/  sd_treasury_payment/  sd_treasury_financing/
-│   ├── sd_treasury_group/  sd_treasury_report/  sd_treasury_dashboard/
-├── engine/                 (Fase 6) app/{api,connectors,ml,ai,mcp,workers}
-├── docker-compose.yml      odoo + postgres (+ engine + redis)
+├── backend/                    FastAPI + workers (Python 3.12)
+│   ├── app/
+│   │   ├── api/                routers por dominio
+│   │   ├── domain/             lógica: flows, forecast, scenarios, collect, payments, financing, group
+│   │   ├── connectors/
+│   │   │   ├── base.py         ErpConnector + modelo canónico
+│   │   │   └── odoo/           v18 (JSON-RPC), v19 (JSON-2)
+│   │   ├── banking/            psd2, n43, camt, pain
+│   │   ├── ml/  ai/  mcp/
+│   │   └── workers/
+│   ├── migrations/             Alembic
+│   └── tests/
+├── frontend/                   React + TypeScript (Vite)
+├── odoo/
+│   └── sd_treasury_connector/  addon ligero (ramas o manifests para 18.0 y 19.0)
+├── infra/terraform/            AWS
+├── docker-compose.yml          dev: api + workers + postgres + redis + odoo18 + odoo19
 ├── docs/
-└── .github/workflows/ci.yml
+└── .github/workflows/
 ```
 
-## 6. Decisiones técnicas clave
-- **Rendimiento:** `treasury.flow` materializada e indexada (fecha, empresa, categoría, estado, escenario), actualizada por hooks y un cron de reconciliación; agregaciones con `read_group`/SQL.
-- **Trazabilidad:** cada flujo apunta a su documento origen para el drill-down; el chatter audita escenarios, firmas y beneficiarios.
-- **Seguridad:** tokens PSD2 cifrados solo en el engine; Odoo ↔ engine con HMAC sobre HTTPS; MCP con OAuth y los permisos del usuario.
-- **No duplicar Odoo:** detectar módulos Enterprise u OCA instalados y apoyarse en ellos (`follow-up`, `sepa`, `payment_order`, préstamos).
-- **Tests:** unitarios por modelo, tours OWL del cockpit, datos demo de un grupo con varias sociedades.
+## 6. Riesgos y cómo mitigarlos
+
+| Riesgo | Mitigación |
+|---|---|
+| Divergencia de datos entre Odoo y la plataforma | Upserts idempotentes, webhooks más incremental, reconciliación nocturna e indicador de «última sincronización» visible |
+| Cambios de API entre Odoo 18, 19 y 20 | Adaptador por versión y tests de contrato contra contenedores de cada versión en CI |
+| Volumen de datos de clientes grandes | Sincronización paginada en workers; `flow` indexada y particionada por tenant y fecha |
+| Seguridad (datos financieros, pagos) | Row-Level Security, KMS, firma doble, auditoría inmutable, pentest antes de vender, camino a ISO 27001 |
+| Dependencia de la sincronización bancaria de Odoo | PSD2 propio en la Fase 6 |
 
 ## 7. Preguntas abiertas
-1. ¿Qué **versión y edición** de Odoo tenéis en producción, y qué módulos OCA usáis?
-2. ¿Despliegue en **Odoo.sh** u on-premise? Odoo Online no admite módulos propios.
-3. ¿Es para **uso interno** o un **producto para clientes** de SmallDev? Afecta a la licencia (LGPL u OPL) y a si el engine debe dar servicio a varios clientes.
-4. ¿Cuántas sociedades, bancos y divisas? ¿Hay UTEs o holding con préstamos intragrupo?
-5. ¿Qué es más urgente después del MVP: previsión, cobros, pagos o financiación?
+1. ¿Los Odoo de los clientes están en una **cuenta AWS gestionada por SmallDev** o en la del cliente? Afecta a la red (VPC peering o PrivateLink frente a HTTPS público) y al modelo de soporte.
+2. ¿**SaaS compartido** (una plataforma para todos los clientes) o una **instancia dedicada por cliente**? Recomiendo SaaS compartido con opción de base de datos dedicada.
+3. ¿Hay ya un **cliente piloto** para validar el MVP? Sus bancos, número de sociedades y divisas marcarían las prioridades.
+4. ¿Qué ERP sería el **segundo** en la hoja de ruta?
+5. ¿Modelo comercial: suscripción por sociedad, por número de cuentas bancarias o por módulos?
