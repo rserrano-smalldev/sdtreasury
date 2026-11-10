@@ -5,6 +5,7 @@ y diseñada para admitir otros ERPs en el futuro.
 
 - Propuesta, arquitectura y fases: [`docs/PROPUESTA_ARQUITECTURA.md`](docs/PROPUESTA_ARQUITECTURA.md)
 - Qué hace falta en AWS: [`docs/AWS_REQUISITOS.md`](docs/AWS_REQUISITOS.md)
+- Despliegue automático: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)
 
 ## Estructura
 
@@ -71,9 +72,10 @@ roles (`Responsable` → admin, `Usuario` → viewer) y las sociedades permitida
 cd backend && .venv/bin/python -m app.cli set-sso-secret --tenant smalldev --secret-ref env:ODOO_SMALLDEV_SSO_SECRET
 ```
 
-### Despliegue del MVP
+### Despliegue
 
-Ver [`docs/AWS_REQUISITOS.md`](docs/AWS_REQUISITOS.md), sección 1, y `deploy/mvp/`.
+Automático desde GitHub a AWS al fusionar en `main`. Contrato del pipeline (artefactos, procesos,
+variables de entorno): [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
 
 ### Tests
 

@@ -346,7 +346,8 @@ sdtreasury/
 | Addon `sd_treasury_connector` (menú, ajustes, grupos) | ✅ Esqueleto, sin probar en Odoo |
 | CI (GitHub Actions), docker-compose | ✅ |
 | **Inicio de sesión desde Odoo** (token firmado de un solo uso, roles y sociedades del usuario) | ✅ Primera versión, probado de punta a punta con un token simulado |
-| **Despliegue MVP de bajo coste** (`deploy/mvp`: Docker Compose en un servidor existente, Caddy con TLS, scheduler) | ✅ Preparado, falta desplegarlo |
+| **Despliegue automático GitHub → AWS** (lo conecta SmallDev; contrato en `DESPLIEGUE.md`: imágenes, procesos, variables, migraciones al arrancar) | ✅ Repo preparado, falta conectar el pipeline |
+| Alternativa en un único servidor (`deploy/mvp`, Docker Compose) | ✅ Disponible, no se usa por ahora |
 | Webhooks de cambios desde Odoo | ⏳ Siguiente (en el MVP basta la sincronización cada 15 min) |
 | Terraform AWS (arquitectura objetivo) | ⏸ Aplazado: el MVP va a coste 0 € (ver `AWS_REQUISITOS.md`) |
 | Consola interna de módulos | ⏳ |

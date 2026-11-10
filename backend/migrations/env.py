@@ -8,7 +8,8 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.models import Base
@@ -18,6 +19,7 @@ if config.config_file_name:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+MIGRATION_LOCK_KEY = 74_201_811  # arbitrary, constant
 
 
 def _url() -> str:
@@ -31,11 +33,21 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = create_engine(_url())
+    # NullPool: the advisory lock is session-level, so the connection must really close.
+    engine = create_engine(_url(), poolclass=NullPool)
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
-        with context.begin_transaction():
-            context.run_migrations()
+        # Serialise concurrent runs (several containers starting at once).
+        connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
+        connection.commit()
+        try:
+            context.configure(connection=connection, target_metadata=target_metadata)
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            connection.rollback()
+            connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY})
+            connection.commit()
+    engine.dispose()
 
 
 if context.is_offline_mode():

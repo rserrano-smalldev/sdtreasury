@@ -1,5 +1,6 @@
 # SDT_DOMAIN: public hostname (e.g. tesoreria.smalldev.es) -> automatic HTTPS.
-# Set SDT_DOMAIN=":80" to serve plain HTTP behind an existing reverse proxy (nginx/ALB).
+# Set SDT_DOMAIN=":80" to serve plain HTTP behind a load balancer (ALB, App Runner…).
+# SDT_API_UPSTREAM: where the backend listens (default "api:8000").
 {$SDT_DOMAIN::80} {
 	encode gzip
 	header {
@@ -9,10 +10,10 @@
 		X-Frame-Options DENY
 	}
 	handle /api/* {
-		reverse_proxy api:8000
+		reverse_proxy {$SDT_API_UPSTREAM:api:8000}
 	}
 	handle /health {
-		reverse_proxy api:8000
+		reverse_proxy {$SDT_API_UPSTREAM:api:8000}
 	}
 	handle {
 		root * /srv

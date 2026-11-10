@@ -1,4 +1,7 @@
 const TOKEN_KEY = "sdt_token";
+// Empty = same origin (/api proxied to the backend). Set VITE_API_BASE at build time when the
+// app is hosted apart from the API (e.g. https://api.tesoreria.example.com).
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
 export function getToken(): string | null {
   try {
@@ -25,7 +28,7 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`/api/v1${path}`, {
+  const res = await fetch(`${API_BASE}/api/v1${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

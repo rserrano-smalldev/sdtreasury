@@ -21,8 +21,12 @@
 - Autenticación: la plataforma emite sus propios JWT (HS256, `SDT_JWT_SECRET`). En el MVP se entra
   **desde Odoo** (`app/core/sso.py` ↔ `odoo/.../controllers/main.py`, mismo formato de token). Odoo
   solo puede conceder roles de tenant. El login de desarrollo solo existe con `SDT_ENV` dev/test.
-- Despliegue MVP: `deploy/mvp` (Docker Compose en un servidor existente, coste 0 €). La arquitectura
-  AWS completa queda para más adelante; no añadir dependencias de servicios AWS de pago al MVP.
+- **Despliegue automático**: SmallDev conecta GitHub con AWS y se despliega al fusionar en `main`.
+  Contrato del pipeline (imágenes, comandos, variables): `docs/DESPLIEGUE.md`. Mantenerlo al día
+  si cambian procesos, variables o puertos. Nunca hacer push a `main`: todo por PR con el CI en verde.
+- Las migraciones deben ser seguras de ejecutar al arrancar (bloqueo en `migrations/env.py`) y
+  compatibles con la versión anterior del código mientras dura el despliegue.
+- MVP barato: no añadir dependencias de servicios AWS de pago sin consultarlo.
 
 ## Comandos
 - Backend: `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest -q`

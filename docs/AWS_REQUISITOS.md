@@ -10,7 +10,9 @@ El código es el mismo en las dos: solo cambia dónde se ejecuta.
 
 ## 1. MVP de bajo coste (recomendado ahora)
 
-### Cómo queda
+> **Actualización:** SmallDev conecta GitHub con AWS y el despliegue es automático. El esquema de abajo sirve como referencia de los componentes; dónde corre cada uno lo decide el pipeline ([`DESPLIEGUE.md`](DESPLIEGUE.md)).
+
+### Cómo queda (referencia con un único servidor)
 
 ```
            Internet (HTTPS, Let's Encrypt)
@@ -48,38 +50,18 @@ Consumo esperado: unos 300–600 MB de RAM y CPU casi nula fuera de las sincroni
 
 ### Lo que necesito de vosotros
 
-1. **Qué servidor usamos.** Por ejemplo, la EC2 del Odoo de Small Development. Necesito saber:
-   - si tiene Docker (o se puede instalar);
-   - cuánta RAM libre tiene;
-   - si delante de Odoo hay ya un nginx o un ALB en los puertos 80/443. Si lo hay, Caddy escucha en otro puerto y añadís un bloque `server` en vuestro nginx.
-2. **PostgreSQL:** ejecutar `deploy/mvp/setup-db.sql` como superusuario. Crea la base de datos `sdtreasury` y los roles `sdtreasury` (dueño) y `sdt_app` (la aplicación).
-3. **DNS:** un registro A o CNAME, por ejemplo `tesoreria.smalldev.es`, apuntando al servidor (o a vuestro proxy).
-4. **Odoo de Small Development:**
+El despliegue lo hace automáticamente vuestro pipeline de GitHub → AWS al fusionar en `main`. Qué tiene que construir y arrancar está en **[`DESPLIEGUE.md`](DESPLIEGUE.md)**.
+
+Además, una sola vez:
+1. **PostgreSQL:** ejecutar `deploy/mvp/setup-db.sql` (base `sdtreasury`, roles `sdtreasury` y `sdt_app`).
+2. **Variables y secretos** del servicio (tabla de `DESPLIEGUE.md`): `SDT_JWT_SECRET`, URLs de la base de datos, API key y secreto de SSO del Odoo de Small Development.
+3. **Odoo de Small Development:**
    - Instalar el addon `odoo/sd_treasury_connector`.
    - Crear el usuario técnico `sdtreasury-api@smalldev.es`, con el grupo *SD Treasury / API de la plataforma* y una **API key**.
    - Asignar *SD Treasury / Responsable* a quien vaya a usar la tesorería.
-5. **Rellenar `deploy/mvp/.env`** en el servidor (plantilla en `.env.example`) con la API key y el secreto de SSO. Los secretos van en ese fichero, **no por chat**.
-6. **Opcional:** un bucket S3 para las copias de seguridad.
+4. **DNS** de la URL pública (por ejemplo `tesoreria.smalldev.es`).
 
-### Puesta en marcha (cuando tengamos lo anterior)
-
-```bash
-cd deploy/mvp && cp .env.example .env && chmod 600 .env
-```
-
-```bash
-cd deploy/mvp && docker compose up -d --build && docker compose run --rm migrate
-```
-
-```bash
-cd deploy/mvp && docker compose exec api python -m app.cli create-tenant --name "Small Development" --slug smalldev --odoo-url http://host.docker.internal:8069 --odoo-db <base> --odoo-login sdtreasury-api@smalldev.es --secret-ref env:ODOO_SMALLDEV_API_KEY
-```
-
-```bash
-cd deploy/mvp && docker compose exec api python -m app.cli set-sso-secret --tenant smalldev --secret-ref env:ODOO_SMALLDEV_SSO_SECRET && docker compose exec api python -m app.cli sync --tenant smalldev && docker compose exec api python -m app.cli grant --tenant smalldev --modules liquidity
-```
-
-En Odoo, en *Contabilidad → Ajustes → SD Treasury*: URL `https://tesoreria.smalldev.es`, identificador `smalldev` y el mismo secreto de SSO.
+`deploy/mvp/docker-compose.yml` queda como alternativa para levantar todo en un único servidor, si algún día hiciera falta.
 
 ### Limitaciones asumidas en el MVP
 - **Un solo servidor**, sin alta disponibilidad: si cae la EC2, caen Odoo y la tesorería a la vez.
