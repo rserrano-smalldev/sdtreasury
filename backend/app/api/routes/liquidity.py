@@ -8,7 +8,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
 
-from app.api.deps import SessionDep
+from app.api.deps import PrincipalDep, SessionDep
 from app.api.schemas import (
     BankAccountOut,
     BankTransactionOut,
@@ -22,10 +22,13 @@ from app.services.entitlements import companies_with_module
 router = APIRouter(tags=["liquidity"])
 
 
-def _allowed_companies(session, company_id: uuid.UUID | None) -> list[uuid.UUID]:
-    allowed = companies_with_module(session, Module.LIQUIDITY)
+def _allowed_companies(session, principal, company_id: uuid.UUID | None) -> list[uuid.UUID]:
+    """Companies the user may see AND that have the Liquidity module."""
+    allowed = [c for c in companies_with_module(session, Module.LIQUIDITY) if principal.can_see(c)]
     if company_id is None:
         return allowed
+    if not principal.can_see(company_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "company_not_allowed"})
     if company_id not in allowed:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -35,8 +38,10 @@ def _allowed_companies(session, company_id: uuid.UUID | None) -> list[uuid.UUID]
 
 
 @router.get("/bank-accounts", response_model=list[BankAccountOut])
-def list_bank_accounts(session: SessionDep, company_id: uuid.UUID | None = None):
-    companies = _allowed_companies(session, company_id)
+def list_bank_accounts(
+    session: SessionDep, principal: PrincipalDep, company_id: uuid.UUID | None = None
+):
+    companies = _allowed_companies(session, principal, company_id)
     return session.scalars(
         select(BankAccount)
         .where(BankAccount.company_id.in_(companies), BankAccount.active.is_(True))
@@ -47,6 +52,7 @@ def list_bank_accounts(session: SessionDep, company_id: uuid.UUID | None = None)
 @router.get("/bank-transactions", response_model=list[BankTransactionOut])
 def list_bank_transactions(
     session: SessionDep,
+    principal: PrincipalDep,
     company_id: uuid.UUID | None = None,
     bank_account_id: uuid.UUID | None = None,
     date_from: date | None = None,
@@ -54,7 +60,7 @@ def list_bank_transactions(
     limit: int = Query(100, le=1000),
     offset: int = 0,
 ):
-    companies = _allowed_companies(session, company_id)
+    companies = _allowed_companies(session, principal, company_id)
     q = select(BankTransaction).where(BankTransaction.company_id.in_(companies))
     if bank_account_id:
         q = q.where(BankTransaction.bank_account_id == bank_account_id)
@@ -69,12 +75,13 @@ def list_bank_transactions(
 @router.get("/open-items", response_model=list[OpenItemOut])
 def list_open_items(
     session: SessionDep,
+    principal: PrincipalDep,
     company_id: uuid.UUID | None = None,
     kind: str | None = Query(None, pattern="^(receivable|payable)$"),
     limit: int = Query(200, le=1000),
     offset: int = 0,
 ):
-    companies = _allowed_companies(session, company_id)
+    companies = _allowed_companies(session, principal, company_id)
     q = select(OpenItem).where(OpenItem.company_id.in_(companies), OpenItem.is_open.is_(True))
     if kind:
         q = q.where(OpenItem.kind == kind)
@@ -83,8 +90,10 @@ def list_open_items(
 
 
 @router.get("/position", response_model=PositionOut)
-def cash_position(session: SessionDep, company_id: uuid.UUID | None = None):
-    companies = _allowed_companies(session, company_id)
+def cash_position(
+    session: SessionDep, principal: PrincipalDep, company_id: uuid.UUID | None = None
+):
+    companies = _allowed_companies(session, principal, company_id)
     accounts = session.scalars(
         select(BankAccount)
         .where(BankAccount.company_id.in_(companies), BankAccount.active.is_(True))

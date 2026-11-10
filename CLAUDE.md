@@ -18,6 +18,11 @@
 - **Cobro por sociedad y módulo**: cada endpoint de un módulo filtra o comprueba con
   `app/services/entitlements.py`. El rol `admin` del cliente nunca implica `platform_admin`.
 - Secretos: solo referencias (`env:` / `aws:`) en base de datos.
+- Autenticación: la plataforma emite sus propios JWT (HS256, `SDT_JWT_SECRET`). En el MVP se entra
+  **desde Odoo** (`app/core/sso.py` ↔ `odoo/.../controllers/main.py`, mismo formato de token). Odoo
+  solo puede conceder roles de tenant. El login de desarrollo solo existe con `SDT_ENV` dev/test.
+- Despliegue MVP: `deploy/mvp` (Docker Compose en un servidor existente, coste 0 €). La arquitectura
+  AWS completa queda para más adelante; no añadir dependencias de servicios AWS de pago al MVP.
 
 ## Comandos
 - Backend: `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest -q`

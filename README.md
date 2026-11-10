@@ -13,7 +13,8 @@ y diseñada para admitir otros ERPs en el futuro.
 | `backend/` | API FastAPI, modelo canónico, conectores ERP, sincronización, migraciones (Alembic) |
 | `frontend/` | App React + TypeScript (Vite) |
 | `odoo/sd_treasury_connector/` | Addon ligero para Odoo 18 Enterprise |
-| `infra/` | Terraform de AWS (pendiente) |
+| `deploy/mvp/` | Despliegue de bajo coste con Docker Compose en un servidor existente |
+| `infra/` | Terraform de AWS para la arquitectura objetivo (pendiente) |
 
 ## Desarrollo local
 
@@ -59,6 +60,20 @@ cd backend && .venv/bin/python -m app.cli test-connection --tenant smalldev && .
 ```
 
 En AWS, `--secret-ref aws:<nombre o ARN del secreto>`.
+
+### Inicio de sesión desde Odoo
+
+El addon firma un token de 60 segundos y de un solo uso con el secreto compartido y redirige a
+`/sso/odoo#token=…`. La plataforma lo verifica (`app/core/sso.py`) y emite su propia sesión con los
+roles (`Responsable` → admin, `Usuario` → viewer) y las sociedades permitidas del usuario en Odoo.
+
+```bash
+cd backend && .venv/bin/python -m app.cli set-sso-secret --tenant smalldev --secret-ref env:ODOO_SMALLDEV_SSO_SECRET
+```
+
+### Despliegue del MVP
+
+Ver [`docs/AWS_REQUISITOS.md`](docs/AWS_REQUISITOS.md), sección 1, y `deploy/mvp/`.
 
 ### Tests
 

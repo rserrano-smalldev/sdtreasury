@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { api, setToken } from "./api";
 
-// Development login. Production uses Cognito (and SSO from Odoo).
-export function Login({ onLogin }: { onLogin: () => void }) {
-  const [slug, setSlug] = useState("smalldev");
+const DEV_LOGIN = import.meta.env.DEV || import.meta.env.VITE_DEV_LOGIN === "true";
+
+export function Login({ onLogin, failed }: { onLogin: () => void; failed?: boolean }) {
+  const [slug, setSlug] = useState("demo");
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -22,14 +23,24 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   }
 
   return (
-    <form className="card login" onSubmit={submit}>
+    <div className="card login">
       <h1>SD Treasury</h1>
-      <label>
-        Tenant
-        <input value={slug} onChange={(e) => setSlug(e.target.value)} />
-      </label>
-      <button type="submit">Entrar (desarrollo)</button>
-      {error && <p className="error">{error}</p>}
-    </form>
+      {failed && (
+        <p className="error">No se ha podido entrar desde Odoo. Vuelve a abrir Tesorería en Odoo.</p>
+      )}
+      <p>
+        Entra desde tu Odoo: <strong>Contabilidad → Tesorería</strong>.
+      </p>
+      {DEV_LOGIN && (
+        <form onSubmit={submit} className="login-form">
+          <label>
+            Tenant (solo desarrollo)
+            <input value={slug} onChange={(e) => setSlug(e.target.value)} />
+          </label>
+          <button type="submit">Entrar (desarrollo)</button>
+          {error && <p className="error">{error}</p>}
+        </form>
+      )}
+    </div>
   );
 }

@@ -329,7 +329,11 @@ sdtreasury/
 
 ## 8. Estado de la Fase 0
 
-**Decidido (10/11/2026):** versión del piloto **Odoo 18 Enterprise**; cuenta AWS la aporta SmallDev ([`AWS_REQUISITOS.md`](AWS_REQUISITOS.md)); precios por definir (no bloquea); equipo: desarrollo incremental entre Rafael y Claude.
+**Decidido (10/11/2026):**
+- Versión del piloto: **Odoo 18 Enterprise**.
+- La infraestructura la aporta SmallDev; **el MVP se despliega a coste 0 €** en un servidor y un PostgreSQL existentes, y la arquitectura objetivo (sección 3) queda para cuando haya varios clientes de pago ([`AWS_REQUISITOS.md`](AWS_REQUISITOS.md)).
+- Precios: por definir (no bloquea).
+- Equipo: desarrollo incremental entre Rafael y Claude.
 
 | Entregable | Estado |
 |---|---|
@@ -341,6 +345,8 @@ sdtreasury/
 | Frontend React: login de desarrollo y posición de caja | ✅ Mínimo |
 | Addon `sd_treasury_connector` (menú, ajustes, grupos) | ✅ Esqueleto, sin probar en Odoo |
 | CI (GitHub Actions), docker-compose | ✅ |
-| SSO desde Odoo, webhooks, colas (SQS) | ⏳ Siguiente |
-| Terraform AWS (staging) | ⏳ Pendiente de los datos de `AWS_REQUISITOS.md` |
+| **Inicio de sesión desde Odoo** (token firmado de un solo uso, roles y sociedades del usuario) | ✅ Primera versión, probado de punta a punta con un token simulado |
+| **Despliegue MVP de bajo coste** (`deploy/mvp`: Docker Compose en un servidor existente, Caddy con TLS, scheduler) | ✅ Preparado, falta desplegarlo |
+| Webhooks de cambios desde Odoo | ⏳ Siguiente (en el MVP basta la sincronización cada 15 min) |
+| Terraform AWS (arquitectura objetivo) | ⏸ Aplazado: el MVP va a coste 0 € (ver `AWS_REQUISITOS.md`) |
 | Consola interna de módulos | ⏳ |

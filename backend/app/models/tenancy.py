@@ -30,6 +30,8 @@ class ErpConnection(UUIDPk, Timestamps, TenantOwned, Base):
     username: Mapped[str] = mapped_column(String(200))
     # Reference to the secret (``env:NAME`` or ``aws:ARN``), never the secret itself.
     secret_ref: Mapped[str] = mapped_column(String(500))
+    # Shared secret used by the Odoo addon to sign login tokens (reference, not the value).
+    sso_secret_ref: Mapped[str | None] = mapped_column(String(500))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -48,3 +50,12 @@ class Company(UUIDPk, Timestamps, TenantOwned, Base):
     vat: Mapped[str | None] = mapped_column(String(32))
     currency: Mapped[str] = mapped_column(String(3))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class SsoNonce(Base):
+    """Login tokens already used (replay protection). Platform-level table."""
+
+    __tablename__ = "sso_nonce"
+
+    jti: Mapped[str] = mapped_column(String(128), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

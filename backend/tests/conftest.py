@@ -45,5 +45,5 @@ def clean_db(migrated_db):
     yield
     engine = create_engine(OWNER_URL)
     with engine.begin() as conn:
-        conn.execute(text(f"TRUNCATE {', '.join(['tenant', *TENANT_TABLES])} CASCADE"))
+        conn.execute(text(f"TRUNCATE {', '.join(['tenant', 'sso_nonce', *TENANT_TABLES])} CASCADE"))
     engine.dispose()

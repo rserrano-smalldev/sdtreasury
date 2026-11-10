@@ -1,0 +1,54 @@
+# SD Treasury MVP: low-cost deployment on an EXISTING server (e.g. the EC2 that runs Odoo).
+# Containers: web (Caddy + React, TLS), api (FastAPI), scheduler (periodic Odoo sync).
+# The database lives in the existing PostgreSQL server (separate database and roles).
+#
+#   cp .env.example .env   # fill it in
+#   docker compose up -d --build
+#   docker compose run --rm migrate
+name: sdtreasury
+
+x-backend: &backend
+  build: ../../backend
+  env_file: .env
+  restart: unless-stopped
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  web:
+    build: ../../frontend
+    restart: unless-stopped
+    environment:
+      SDT_DOMAIN: ${SDT_DOMAIN:-:80}
+    ports:
+      - "${SDT_HTTP_PORT:-80}:80"
+      - "${SDT_HTTPS_PORT:-443}:443"
+    volumes:
+      - caddy_data:/data
+    depends_on: [api]
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  scheduler:
+    <<: *backend
+    command: ["python", "-m", "app.cli", "scheduler"]
+    deploy:
+      resources:
+        limits: { memory: 384m }
+
+  migrate:
+    <<: *backend
+    profiles: [tools]
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+
+volumes:
+  caddy_data:

@@ -1,14 +1,16 @@
-"""Authentication: turn a bearer token into a ``Principal``.
+"""Authentication: platform-issued JWTs turned into a ``Principal``.
 
-Token claims used by the platform:
-- ``sub``: user id
-- ``custom:tenant_id`` (Cognito) or ``tenant_id`` (dev): tenant UUID
-- ``custom:roles`` / ``roles``: comma-separated or list of roles
+The platform is its own token issuer (HS256, ``SDT_JWT_SECRET``). Users get a token by:
+- logging in from Odoo (``/auth/odoo-sso``, see ``app/core/sso.py``): the MVP path, no
+  external identity provider needed;
+- the development login (``/auth/dev-token``), only in dev/test.
+
+Claims: ``sub`` user, ``tenant_id``, ``roles`` (list), ``companies`` (list of company UUIDs
+the user may see; absent = all companies of the tenant).
 """
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 from uuid import UUID
 
 import jwt
@@ -19,6 +21,7 @@ TENANT_ROLES = {"admin", "treasurer", "approver", "viewer"}
 # SmallDev staff only (module activation, support). Never implied by a tenant role.
 PLATFORM_ROLES = {"platform_admin"}
 ROLES = TENANT_ROLES | PLATFORM_ROLES
+ISSUER = "sdtreasury"
 
 
 class AuthError(Exception):
@@ -30,6 +33,8 @@ class Principal:
     user_id: str
     tenant_id: UUID
     roles: frozenset[str] = field(default_factory=frozenset)
+    # None means every company of the tenant.
+    company_ids: frozenset[UUID] | None = None
 
     def has_role(self, *roles: str) -> bool:
         """True if the principal has any of ``roles``; tenant ``admin`` implies every
@@ -39,58 +44,54 @@ class Principal:
             return True
         return "admin" in self.roles and bool(wanted & TENANT_ROLES)
 
+    def can_see(self, company_id: UUID) -> bool:
+        return self.company_ids is None or company_id in self.company_ids
 
-def _parse_roles(raw) -> frozenset[str]:
-    if raw is None:
-        return frozenset()
-    items = raw.split(",") if isinstance(raw, str) else list(raw)
-    return frozenset(r.strip() for r in items if r.strip() in ROLES)
+
+def issue_token(
+    tenant_id: UUID,
+    user_id: str,
+    roles: list[str],
+    company_ids: list[UUID] | None = None,
+    settings: Settings | None = None,
+) -> str:
+    settings = settings or get_settings()
+    now = datetime.now(UTC)
+    claims = {
+        "iss": ISSUER,
+        "sub": user_id,
+        "tenant_id": str(tenant_id),
+        "roles": sorted(set(roles) & ROLES),
+        "iat": now,
+        "exp": now + timedelta(hours=settings.jwt_ttl_hours),
+    }
+    if company_ids is not None:
+        claims["companies"] = [str(c) for c in company_ids]
+    return jwt.encode(claims, settings.jwt_secret, algorithm="HS256")
 
 
 def issue_dev_token(tenant_id: UUID, user_id: str, roles: list[str], settings: Settings) -> str:
-    if settings.auth_mode != "dev" or settings.env not in ("dev", "test"):
+    if not settings.dev_login_enabled:
         raise AuthError("Dev tokens are disabled in this environment")
-    now = datetime.now(UTC)
-    claims = {
-        "sub": user_id,
-        "tenant_id": str(tenant_id),
-        "roles": roles,
-        "iat": now,
-        "exp": now + timedelta(hours=12),
-    }
-    return jwt.encode(claims, settings.dev_jwt_secret, algorithm="HS256")
-
-
-@lru_cache
-def _jwks_client(region: str, pool_id: str) -> jwt.PyJWKClient:
-    return jwt.PyJWKClient(
-        f"https://cognito-idp.{region}.amazonaws.com/{pool_id}/.well-known/jwks.json"
-    )
+    return issue_token(tenant_id, user_id, roles, settings=settings)
 
 
 def decode_token(token: str, settings: Settings | None = None) -> Principal:
     settings = settings or get_settings()
     try:
-        if settings.auth_mode == "dev":
-            claims = jwt.decode(token, settings.dev_jwt_secret, algorithms=["HS256"])
-        else:
-            key = _jwks_client(settings.cognito_region, settings.cognito_user_pool_id)
-            signing_key = key.get_signing_key_from_jwt(token)
-            claims = jwt.decode(
-                token,
-                signing_key.key,
-                algorithms=["RS256"],
-                audience=settings.cognito_app_client_id,
-            )
-    except jwt.PyJWTError as exc:
-        raise AuthError(str(exc)) from exc
-
-    tenant = claims.get("custom:tenant_id") or claims.get("tenant_id")
-    if not tenant:
-        raise AuthError("Token has no tenant")
-    try:
-        tenant_id = UUID(tenant)
-    except ValueError as exc:
-        raise AuthError("Invalid tenant id in token") from exc
-    roles = _parse_roles(claims.get("custom:roles") or claims.get("roles"))
-    return Principal(user_id=claims["sub"], tenant_id=tenant_id, roles=roles)
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+            issuer=ISSUER,
+            options={"require": ["exp", "sub", "iss"]},
+        )
+        tenant_id = UUID(claims["tenant_id"])
+        companies = claims.get("companies")
+        company_ids = frozenset(UUID(c) for c in companies) if companies is not None else None
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError) as exc:
+        raise AuthError(f"Invalid token: {exc}") from exc
+    roles = frozenset(r for r in claims.get("roles", []) if r in ROLES)
+    return Principal(
+        user_id=claims["sub"], tenant_id=tenant_id, roles=roles, company_ids=company_ids
+    )

@@ -34,7 +34,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   if (!res.ok) {
-    if (res.status === 401) setToken(null);
+    if (res.status === 401 && token) {
+      // Session expired: back to the login screen.
+      setToken(null);
+      window.location.reload();
+    }
     throw new ApiError(res.status, await res.text());
   }
   return res.json() as Promise<T>;

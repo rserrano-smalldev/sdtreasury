@@ -1,7 +1,7 @@
 from app.models.base import Base
 from app.models.billing import Entitlement, Module
 from app.models.erp_data import BankAccount, BankTransaction, OpenItem, SyncState
-from app.models.tenancy import Company, ErpConnection, Tenant
+from app.models.tenancy import Company, ErpConnection, SsoNonce, Tenant
 
 TENANT_TABLES = [
     "erp_connection",
@@ -22,6 +22,7 @@ __all__ = [
     "ErpConnection",
     "Module",
     "OpenItem",
+    "SsoNonce",
     "SyncState",
     "TENANT_TABLES",
     "Tenant",

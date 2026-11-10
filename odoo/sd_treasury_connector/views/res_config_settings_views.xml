@@ -11,6 +11,12 @@
                              help="Web address of the SD Treasury app opened from the Treasury menu">
                         <field name="sd_treasury_platform_url" placeholder="https://tesoreria.smalldev.es"/>
                     </setting>
+                    <setting string="Client identifier and login secret"
+                             help="Both are provided by SmallDev when the client is registered"
+                             groups="base.group_system">
+                        <field name="sd_treasury_tenant" placeholder="smalldev"/>
+                        <field name="sd_treasury_sso_secret" password="True"/>
+                    </setting>
                 </block>
             </xpath>
         </field>

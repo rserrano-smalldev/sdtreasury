@@ -1,0 +1,22 @@
+# SDT_DOMAIN: public hostname (e.g. tesoreria.smalldev.es) -> automatic HTTPS.
+# Set SDT_DOMAIN=":80" to serve plain HTTP behind an existing reverse proxy (nginx/ALB).
+{$SDT_DOMAIN::80} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+	}
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /health {
+		reverse_proxy api:8000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

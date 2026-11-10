@@ -7,6 +7,7 @@ from app.core.config import get_settings
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings.check_production_safety()
     app = FastAPI(title="SD Treasury API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,

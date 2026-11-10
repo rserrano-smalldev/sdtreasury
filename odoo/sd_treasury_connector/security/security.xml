@@ -5,10 +5,17 @@
         <field name="sequence">60</field>
     </record>
 
-    <!-- People who see the Treasury menu in Odoo. -->
+    <!-- Sees the Treasury menu; enters the platform as "viewer". -->
     <record id="group_sd_treasury_user" model="res.groups">
         <field name="name">User</field>
         <field name="category_id" ref="module_category_sd_treasury"/>
+    </record>
+
+    <!-- Enters the platform as "admin" of the client (never as SmallDev platform admin). -->
+    <record id="group_sd_treasury_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="category_id" ref="module_category_sd_treasury"/>
+        <field name="implied_ids" eval="[(4, ref('group_sd_treasury_user'))]"/>
     </record>
 
     <!-- Technical user the platform authenticates as (API key).

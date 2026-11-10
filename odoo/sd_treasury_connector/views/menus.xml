@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="action_open_platform" model="ir.actions.server">
+    <record id="action_open_platform" model="ir.actions.act_url">
         <field name="name">Treasury</field>
-        <field name="model_id" ref="model_sd_treasury_launcher"/>
-        <field name="state">code</field>
-        <field name="code">action = model.sd_treasury_open()</field>
+        <field name="url">/sd_treasury/launch</field>
+        <field name="target">new</field>
     </record>
 
     <menuitem id="menu_sd_treasury_root"

@@ -1,12 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getToken, setToken } from "./api";
 import { Login } from "./Login";
 import { PositionView } from "./PositionView";
+import { consumeOdooLogin } from "./sso";
+
+type State = "checking" | "anonymous" | "ready" | "sso_failed";
 
 export function App() {
-  const [loggedIn, setLoggedIn] = useState(Boolean(getToken()));
+  const [state, setState] = useState<State>("checking");
 
-  if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
+  useEffect(() => {
+    consumeOdooLogin()
+      .then(() => setState(getToken() ? "ready" : "anonymous"))
+      .catch(() => setState("sso_failed"));
+  }, []);
+
+  if (state === "checking") return <p className="center muted">Entrando…</p>;
+  if (state !== "ready")
+    return (
+      <Login
+        failed={state === "sso_failed"}
+        onLogin={() => setState("ready")}
+      />
+    );
   return (
     <div className="layout">
       <header>
@@ -15,7 +31,7 @@ export function App() {
           className="link"
           onClick={() => {
             setToken(null);
-            setLoggedIn(false);
+            setState("anonymous");
           }}
         >
           Salir

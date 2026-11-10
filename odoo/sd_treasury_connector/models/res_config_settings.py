@@ -1,6 +1,8 @@
-from odoo import api, fields, models
+from odoo import fields, models
 
 PARAM_URL = "sd_treasury.platform_url"
+PARAM_TENANT = "sd_treasury.tenant"
+PARAM_SECRET = "sd_treasury.sso_secret"
 
 
 class ResConfigSettings(models.TransientModel):
@@ -11,24 +13,14 @@ class ResConfigSettings(models.TransientModel):
         config_parameter=PARAM_URL,
         help="Base URL of the SD Treasury web app, e.g. https://tesoreria.smalldev.es",
     )
-
-
-class SdTreasuryLauncher(models.AbstractModel):
-    _name = "sd.treasury.launcher"
-    _description = "Opens the SD Treasury web app"
-
-    @api.model
-    def sd_treasury_open(self):
-        url = self.env["ir.config_parameter"].sudo().get_param(PARAM_URL)
-        if not url:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "type": "warning",
-                    "message": self.env._(
-                        "Configure the SD Treasury URL in Accounting settings first."
-                    ),
-                },
-            }
-        return {"type": "ir.actions.act_url", "url": url, "target": "new"}
+    sd_treasury_tenant = fields.Char(
+        string="SD Treasury tenant",
+        config_parameter=PARAM_TENANT,
+        help="Identifier of this client in SD Treasury (given by SmallDev).",
+    )
+    sd_treasury_sso_secret = fields.Char(
+        string="SD Treasury login secret",
+        config_parameter=PARAM_SECRET,
+        groups="base.group_system",
+        help="Shared secret used to sign logins into SD Treasury (given by SmallDev).",
+    )

@@ -5,7 +5,7 @@ msgstr ""
 
 #. module: sd_treasury_connector
 #: model:ir.ui.menu,name:sd_treasury_connector.menu_sd_treasury_root
-#: model:ir.actions.server,name:sd_treasury_connector.action_open_platform
+#: model:ir.actions.act_url,name:sd_treasury_connector.action_open_platform
 msgid "Treasury"
 msgstr "Tesorería"
 
@@ -25,7 +25,16 @@ msgid "SD Treasury URL"
 msgstr "URL de SD Treasury"
 
 #. module: sd_treasury_connector
-#. odoo-python
-#: code:addons/sd_treasury_connector/models/res_config_settings.py:0
-msgid "Configure the SD Treasury URL in Accounting settings first."
-msgstr "Configura primero la URL de SD Treasury en los ajustes de Contabilidad."
+#: model:res.groups,name:sd_treasury_connector.group_sd_treasury_manager
+msgid "Manager"
+msgstr "Responsable"
+
+#. module: sd_treasury_connector
+#: model:ir.model.fields,field_description:sd_treasury_connector.field_res_config_settings__sd_treasury_tenant
+msgid "SD Treasury tenant"
+msgstr "Identificador de cliente en SD Treasury"
+
+#. module: sd_treasury_connector
+#: model:ir.model.fields,field_description:sd_treasury_connector.field_res_config_settings__sd_treasury_sso_secret
+msgid "SD Treasury login secret"
+msgstr "Secreto de acceso a SD Treasury"

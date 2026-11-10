@@ -52,3 +52,5 @@ th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: 
 .neg { color: var(--negative); }
 .muted { color: var(--muted); font-size: 0.9rem; }
 .error { color: var(--negative); }
+.login-form { display: grid; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.center { text-align: center; margin-top: 20vh; }
