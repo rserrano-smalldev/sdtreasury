@@ -327,9 +327,20 @@ sdtreasury/
 | Modelo comercial | Suscripción **por sociedad y módulo** |
 | Otros ERPs | A largo plazo y sin fecha; solo se deja preparada la abstracción |
 
-## 8. Pendiente para arrancar la Fase 0
-1. Versión de Odoo de Small Development (¿18 o 19?), para priorizar el adaptador del conector.
-2. Estructura AWS: ¿se crea una cuenta nueva para la plataforma dentro de la Organization? ¿Qué región? (Recomendado: `eu-south-2`, España.)
-3. Precios por módulo y sociedad (no bloquea el desarrollo, pero sí el diseño de la consola interna).
-4. Segundo piloto multisociedad para validar Grupo.
-5. Equipo asignado (backend, frontend, funcional) y fecha de inicio.
+## 8. Estado de la Fase 0
+
+**Decidido (10/11/2026):** versión del piloto **Odoo 18 Enterprise**; cuenta AWS la aporta SmallDev ([`AWS_REQUISITOS.md`](AWS_REQUISITOS.md)); precios por definir (no bloquea); equipo: desarrollo incremental entre Rafael y Claude.
+
+| Entregable | Estado |
+|---|---|
+| Backend FastAPI: tenants, RLS, autenticación (dev/Cognito), roles | ✅ Primera versión |
+| Suscripción por sociedad y módulo (`entitlement`) | ✅ Primera versión, sin consola |
+| Modelo canónico + `ErpConnector` + conector **Odoo 18** de solo lectura (sociedades, bancos, saldos, movimientos, facturas pendientes) | ✅ Primera versión, falta probarlo contra el Odoo del piloto |
+| Sincronización incremental idempotente + refresco de facturas abiertas | ✅ |
+| Conector demo con datos ficticios | ✅ |
+| Frontend React: login de desarrollo y posición de caja | ✅ Mínimo |
+| Addon `sd_treasury_connector` (menú, ajustes, grupos) | ✅ Esqueleto, sin probar en Odoo |
+| CI (GitHub Actions), docker-compose | ✅ |
+| SSO desde Odoo, webhooks, colas (SQS) | ⏳ Siguiente |
+| Terraform AWS (staging) | ⏳ Pendiente de los datos de `AWS_REQUISITOS.md` |
+| Consola interna de módulos | ⏳ |

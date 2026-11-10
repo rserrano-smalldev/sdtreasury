@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sdtreasury
+          POSTGRES_PASSWORD: sdtreasury
+          POSTGRES_DB: sdtreasury_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sdtreasury" --health-interval 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create app role
+        run: PGPASSWORD=sdtreasury psql -h localhost -U sdtreasury -d sdtreasury_test -c "CREATE ROLE sdt_app LOGIN PASSWORD 'sdt_app';"
+      - run: pip install -e ".[dev]"
+      - run: ruff check . && ruff format --check .
+      - run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  odoo-addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax check (Python + XML)
+        run: |
+          python -m compileall -q odoo/
+          python -c "import pathlib, xml.dom.minidom as m; [m.parse(str(p)) for p in pathlib.Path('odoo').rglob('*.xml')]"

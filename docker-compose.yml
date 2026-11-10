@@ -1,0 +1,52 @@
+# Local development stack.
+#   docker compose up -d db            -> PostgreSQL with the owner and app roles
+#   docker compose up -d               -> db + api
+#   docker compose --profile odoo up   -> also an Odoo 18 to develop the connector against
+#                                        (Community image; mount Enterprise addons via
+#                                        ODOO_ENTERPRISE_PATH to install account_accountant)
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: sdtreasury
+      POSTGRES_PASSWORD: sdtreasury
+      POSTGRES_DB: sdtreasury
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/docker/init-db.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+
+  api:
+    build: ./backend
+    environment:
+      SDT_ENV: dev
+      SDT_DATABASE_URL: postgresql+psycopg://sdt_app:sdt_app@db:5432/sdtreasury
+      SDT_MIGRATION_DATABASE_URL: postgresql+psycopg://sdtreasury:sdtreasury@db:5432/sdtreasury
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports: ["8000:8000"]
+    depends_on: [db]
+
+  odoo-db:
+    profiles: [odoo]
+    image: postgres:16
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+
+  odoo:
+    profiles: [odoo]
+    image: odoo:18.0
+    depends_on: [odoo-db]
+    environment:
+      HOST: odoo-db
+      USER: odoo
+      PASSWORD: odoo
+    ports: ["8069:8069"]
+    volumes:
+      - ./odoo:/mnt/extra-addons
+      - ${ODOO_ENTERPRISE_PATH:-./odoo}:/mnt/enterprise
+    command: ["--addons-path=/mnt/enterprise,/mnt/extra-addons"]
+
+volumes:
+  pgdata:

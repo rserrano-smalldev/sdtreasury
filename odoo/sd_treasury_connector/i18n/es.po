@@ -1,0 +1,31 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es\n"
+
+#. module: sd_treasury_connector
+#: model:ir.ui.menu,name:sd_treasury_connector.menu_sd_treasury_root
+#: model:ir.actions.server,name:sd_treasury_connector.action_open_platform
+msgid "Treasury"
+msgstr "Tesorería"
+
+#. module: sd_treasury_connector
+#: model:res.groups,name:sd_treasury_connector.group_sd_treasury_user
+msgid "User"
+msgstr "Usuario"
+
+#. module: sd_treasury_connector
+#: model:res.groups,name:sd_treasury_connector.group_sd_treasury_api
+msgid "Platform API (technical user)"
+msgstr "API de la plataforma (usuario técnico)"
+
+#. module: sd_treasury_connector
+#: model:ir.model.fields,field_description:sd_treasury_connector.field_res_config_settings__sd_treasury_platform_url
+msgid "SD Treasury URL"
+msgstr "URL de SD Treasury"
+
+#. module: sd_treasury_connector
+#. odoo-python
+#: code:addons/sd_treasury_connector/models/res_config_settings.py:0
+msgid "Configure the SD Treasury URL in Accounting settings first."
+msgstr "Configura primero la URL de SD Treasury en los ajustes de Contabilidad."

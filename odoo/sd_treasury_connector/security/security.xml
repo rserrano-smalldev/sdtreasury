@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_sd_treasury" model="ir.module.category">
+        <field name="name">SD Treasury</field>
+        <field name="sequence">60</field>
+    </record>
+
+    <!-- People who see the Treasury menu in Odoo. -->
+    <record id="group_sd_treasury_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="category_id" ref="module_category_sd_treasury"/>
+    </record>
+
+    <!-- Technical user the platform authenticates as (API key).
+         Read-only accounting access; write access will be added per feature (payments). -->
+    <record id="group_sd_treasury_api" model="res.groups">
+        <field name="name">Platform API (technical user)</field>
+        <field name="category_id" ref="module_category_sd_treasury"/>
+        <field name="implied_ids" eval="[(4, ref('account.group_account_readonly'))]"/>
+    </record>
+</odoo>
