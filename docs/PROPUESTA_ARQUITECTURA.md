@@ -1,4 +1,4 @@
-# SD Treasury: propuesta de arquitectura y plan por fases (v3)
+# SD Treasury: propuesta de arquitectura y plan por fases (v4)
 
 Objetivo: un sistema de gestión de tesorería (TMS) que complemente Odoo y cubra el perímetro funcional de Agicap.
 
@@ -8,6 +8,15 @@ Objetivo: un sistema de gestión de tesorería (TMS) que complemente Odoo y cubr
 > - **A largo plazo, otros ERPs.**
 >
 > Esto cambia la arquitectura de la v2 (addons nativos de Odoo) a una **plataforma propia independiente del ERP con un conector para Odoo**. El análisis funcional de Agicap (sección 1) se mantiene de la v2.
+>
+> **v4 (10/11/2026):** incorpora las decisiones tomadas (sección 7):
+> - Los Odoo de los clientes están en el AWS de SmallDev y se accede por API.
+> - Una sola plataforma compartida.
+> - Piloto: Small Development.
+> - Cobro por sociedad y módulo.
+> - Segundo ERP aplazado sin fecha.
+>
+> Se añaden las secciones 3.6 (red), 3.7 (modelo comercial) y 4.1 (piloto).
 
 ---
 
@@ -153,6 +162,44 @@ cash_pool, sweep_proposal, intercompany_loan                 (grupo)
 alert_rule, alert_event, report_template, audit_log
 ```
 
+### 3.6 Red y acceso a los Odoo (todo en el AWS de SmallDev)
+
+Como todos los Odoo de los clientes están en la infraestructura AWS de SmallDev, **la plataforma se conecta a ellos por red privada**, sin exponer la API de Odoo a internet:
+
+- **Cuenta AWS propia para la plataforma** dentro de la misma AWS Organization. Aísla costes, permisos y el alcance de las auditorías. La conexión con las VPC de los Odoo va por **Transit Gateway o VPC peering**, con DNS privado (`odoo-cliente.internal`).
+- **De la plataforma a Odoo:** llamadas a la API de Odoo (JSON-RPC en 18, JSON-2 en 19) por red privada, con **un usuario técnico por cliente** y API key en Secrets Manager. El addon crea un grupo de permisos mínimo: lectura de contabilidad, ventas, compras y partners; escritura solo de pagos y notas.
+- **De Odoo a la plataforma (webhooks):** un ALB interno, con firma HMAC por tenant.
+- **Usuarios:** solo el frontend (CloudFront) y la API pública (ALB con WAF) salen a internet. El menú «Tesorería» de Odoo abre la app con SSO.
+- **Protección de los Odoo de cliente:** límite de peticiones por instancia, sincronizaciones pesadas en horario valle y paginación, para no penalizar el rendimiento del ERP del cliente.
+- **Ventaja operativa:** al controlar también los Odoo, SmallDev puede instalar y actualizar el addon conector en todos los clientes de forma centralizada (por ejemplo, con el pipeline de despliegue de los Odoo).
+
+### 3.7 Modelo comercial: suscripción por sociedad y módulo
+
+Cada módulo comercial corresponde a una fase del plan, así que lo que se construye se puede vender en cuanto se entrega:
+
+| Módulo | Contenido | Fase | Notas |
+|---|---|---|---|
+| **Liquidez** (base) | Cockpit, categorías, conciliación con Odoo, previsión a 13 semanas, alertas, resumen del lunes | 1 | Obligatorio |
+| **Previsión** | Multihorizonte, conversor de presupuesto, escenarios, desviaciones | 2 | Requiere Liquidez |
+| **Cobros** | DSO, riesgo, recordatorios, litigios | 3 | |
+| **Pagos** | Propuestas, firmas, antifraude, SEPA, PSR | 4 | |
+| **Financiación** | Préstamos, pólizas, EURIBOR, covenants, inversiones | 5 | |
+| **Grupo** | Consolidación, intragrupo, cash pooling | 5 | Requiere 2 o más sociedades con el módulo |
+| **IA** | Asistente, anomalías, ML, MCP | 6 | |
+| **Bancos directos** | Conexión PSD2 propia | 6 | Coste del proveedor PSD2 repercutido por cuenta |
+
+**Implementación técnica (desde la Fase 0):**
+```
+plan              (catálogo: módulo, precio por sociedad/mes)
+subscription      (tenant, estado, fecha de facturación, método de pago)
+entitlement       (tenant, company_id, module, valid_from, valid_to, trial)
+usage_snapshot    (tenant, mes, sociedades activas por módulo)  → base de la factura
+```
+- La API comprueba el acceso **por sociedad** en cada endpoint (`require_module("collect", company_id)`). El frontend oculta o muestra como «bloqueado, disponible» los módulos no contratados (útil para la venta).
+- Las vistas consolidadas solo incluyen las sociedades con el módulo Grupo.
+- Periodos de prueba por módulo (`trial`) y una consola interna para que SmallDev active o desactive módulos por cliente.
+- La facturación se hace al principio con un export mensual desde `usage_snapshot`. La **integración con Stripe Billing** (cantidad = número de sociedades por módulo) llega en la Fase 7.
+
 ---
 
 ## 4. Plan por fases
@@ -162,8 +209,10 @@ Supone un equipo de 2–3 desarrolladores (backend Python, frontend React y una 
 ### Fase 0: cimientos de la plataforma (4–5 semanas)
 - Infraestructura AWS con Terraform (VPC, ECS Fargate, RDS, Redis, SQS, S3/CloudFront, Cognito, Secrets Manager); entornos dev, staging y producción.
 - Esqueleto de FastAPI (multi-tenant, RLS, auth, auditoría) y de la app React (layout, auth, selector de sociedad).
-- Modelo canónico e interfaz `ErpConnector`.
-- **Conector Odoo v1 (solo lectura)** para 18 y 19: sociedades, cuentas, extractos, facturas pendientes, pedidos y partners; carga inicial, incremental y webhooks.
+- Modelo canónico e interfaz `ErpConnector` (solo se implementa el conector Odoo; la interfaz deja la puerta abierta a otros ERPs).
+- Red privada hacia los Odoo (cuenta AWS de la plataforma, Transit Gateway o peering, ALB interno para webhooks).
+- **Suscripciones y módulos por sociedad** (`plan`, `subscription`, `entitlement`) y consola interna de activación.
+- **Conector Odoo v1 (solo lectura)**, primero para la versión del piloto y después para la otra (18 o 19): sociedades, cuentas, extractos, facturas pendientes, pedidos y partners; carga inicial, incremental y webhooks.
 - Addon `sd_treasury_connector`: configuración, SSO y menú embebido.
 - CI/CD, tests contra instancias Odoo 18 y 19 en Docker, observabilidad.
 
@@ -206,12 +255,28 @@ Supone un equipo de 2–3 desarrolladores (backend Python, frontend React y una 
 - **Asistente en lenguaje natural** (Claude API): preguntas, explicación de desviaciones y recategorización en bloque con revisión previa.
 - **Servidor MCP de SD Treasury** (OAuth, con los permisos del usuario): posición, previsión, desviaciones, DSO.
 
-### Fase 7: producto y expansión (continua)
-- **Segundo conector ERP**. Candidatos en el mercado español: Holded, Sage 200, A3ERP, Microsoft Business Central (decidir según la cartera de clientes).
-- Facturación del SaaS (Stripe), onboarding autoservicio y panel de administración de tenants.
+### Fase 7: producto (continua)
+- Facturación automática con Stripe Billing (por sociedad y módulo), alta de clientes en autoservicio y panel de administración de tenants.
 - Opcional: EDITRAN, EBICS o H2H; coberturas de divisa y tipos; app móvil nativa.
 
+### Futuro, sin fecha: otros ERPs
+- La interfaz `ErpConnector` y el modelo canónico ya lo permiten. Cuando haya demanda se elige el ERP (candidatos en España: Holded, Sage 200, A3ERP, Business Central) y se implementa solo su conector.
+
 **Total orientativo: 9–11 meses** para las Fases 0–6.
+
+### 4.1 Piloto: Small Development
+
+Revisión de solo lectura de su Odoo (10/11/2026):
+
+| Dato | Valor | Implicación |
+|---|---|---|
+| Sociedades | 1 (Small Development SL, EUR) | El MVP encaja; el módulo **Grupo no se puede validar** con el piloto |
+| Bancos | Santander y CaixaBank, ambos con **sincronización online de Odoo** | La Fase 1 no necesita PSD2 propio: se leen los extractos de Odoo |
+| Diario «Préstamos» | Sí | Caso real para el módulo **Financiación** (Fase 5) |
+| Movimientos bancarios | unos 1.500 al año (2025 y 2026) | Volumen cómodo; suficiente histórico para entrenar la categorización |
+| Facturas pendientes | unas 60 de cliente y 140 de proveedor | Buen caso para la previsión a 13 semanas, Cobros y Pagos |
+
+**Para validar Grupo y multidivisa** hará falta un segundo entorno multisociedad: una instancia demo con varias sociedades y una UTE (como Demo11), o un cliente con grupo de empresas como segundo piloto.
 
 ---
 
@@ -250,9 +315,21 @@ sdtreasury/
 | Seguridad (datos financieros, pagos) | Row-Level Security, KMS, firma doble, auditoría inmutable, pentest antes de vender, camino a ISO 27001 |
 | Dependencia de la sincronización bancaria de Odoo | PSD2 propio en la Fase 6 |
 
-## 7. Preguntas abiertas
-1. ¿Los Odoo de los clientes están en una **cuenta AWS gestionada por SmallDev** o en la del cliente? Afecta a la red (VPC peering o PrivateLink frente a HTTPS público) y al modelo de soporte.
-2. ¿**SaaS compartido** (una plataforma para todos los clientes) o una **instancia dedicada por cliente**? Recomiendo SaaS compartido con opción de base de datos dedicada.
-3. ¿Hay ya un **cliente piloto** para validar el MVP? Sus bancos, número de sociedades y divisas marcarían las prioridades.
-4. ¿Qué ERP sería el **segundo** en la hoja de ruta?
-5. ¿Modelo comercial: suscripción por sociedad, por número de cuentas bancarias o por módulos?
+## 7. Decisiones tomadas
+
+| Tema | Decisión |
+|---|---|
+| ERP de partida | Odoo **18 y 19 Enterprise** |
+| Alojamiento | AWS de SmallDev (plataforma y Odoo de clientes); acceso a Odoo **por API** y red privada |
+| Despliegue | **Una sola plataforma** compartida por todos los clientes |
+| Stack | Backend Python (FastAPI) + frontend React (TypeScript) + addon conector ligero en Odoo |
+| Piloto | **Small Development** |
+| Modelo comercial | Suscripción **por sociedad y módulo** |
+| Otros ERPs | A largo plazo y sin fecha; solo se deja preparada la abstracción |
+
+## 8. Pendiente para arrancar la Fase 0
+1. Versión de Odoo de Small Development (¿18 o 19?), para priorizar el adaptador del conector.
+2. Estructura AWS: ¿se crea una cuenta nueva para la plataforma dentro de la Organization? ¿Qué región? (Recomendado: `eu-south-2`, España.)
+3. Precios por módulo y sociedad (no bloquea el desarrollo, pero sí el diseño de la consola interna).
+4. Segundo piloto multisociedad para validar Grupo.
+5. Equipo asignado (backend, frontend, funcional) y fecha de inicio.
